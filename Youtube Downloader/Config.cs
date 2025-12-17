@@ -18,6 +18,7 @@ public class Config
     public const string DefaultFfmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z";
     public const string DefaultDenoUrl = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip";
     public const string DefaultWebView2Url = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
+    public const string DefaultGitHubReleaseUrl = "https://github.com/Kingofthecarts/Youtube-Downloader-UI";
 
     public string OutputFolder { get; set; }
     public string TempFolder { get; set; }
@@ -180,7 +181,7 @@ public class Config
         LastSongBrowserOpenMs = 0;
         LastHistoryOpenMs = 0;
         LastSongLoadMs = 0;
-        GitHubReleaseUrl = "";
+        GitHubReleaseUrl = DefaultGitHubReleaseUrl;
         MinimizeOnClose = false;
         AllowFilenameEdit = false;
         LogFolder = Path.Combine(appDataDir, "logs");
