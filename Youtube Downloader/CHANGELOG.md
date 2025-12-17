@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.1
+- Added Deno runtime check on startup with download prompt if missing
+- Deno is required for yt-dlp to handle YouTube signature protection
+
+## 1.4.0
+- Added automatic update checking on startup for both the app and yt-dlp
+- Checks GitHub releases for newer versions and prompts to install
+- Auto-update checks can be enabled/disabled in Options
+- Both options enabled by default
+- Removed Node.js runtime (Deno is used instead for YouTube signature solving)
+- Deno is now automatically downloaded during first-run setup if missing
+
 ## 1.3.1
 - Fixed update download progress getting stuck
 - Added "Install Update" button after download completes

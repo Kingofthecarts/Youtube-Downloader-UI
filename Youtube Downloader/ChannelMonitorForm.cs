@@ -1040,11 +1040,12 @@ public class ChannelMonitorForm : Form
             }
 
             // Method 2: Fallback - get full metadata from first video to extract channel avatar
+            string fallbackCookiesArg = GetCookiesArgument();
             var videoStartInfo = new ProcessStartInfo
             {
                 FileName = config.YtDlpPath,
                 // Use full metadata (not flat-playlist) to get channel thumbnail info
-                Arguments = $"--dump-json --playlist-items 1 \"{channel.ChannelUrl}/videos\"",
+                Arguments = $"{fallbackCookiesArg}--dump-json --playlist-items 1 \"{channel.ChannelUrl}/videos\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -1419,7 +1420,8 @@ public class ChannelMonitorForm : Form
         // Fetch ALL videos - no limit. We merge with existing and RSS updates dates for recent 15.
         // Use --extractor-args to ensure we get all pages from YouTube
         Debug.WriteLine($"[ChannelMonitor] FetchWithProgress: fetching ALL videos for {channel.ChannelName}");
-        string arguments = $"--dump-json --flat-playlist --extractor-args \"youtube:approximate_date\" \"{channel.ChannelUrl}/videos\"";
+        string progressCookiesArg = GetCookiesArgument();
+        string arguments = $"{progressCookiesArg}--dump-json --flat-playlist --extractor-args \"youtube:approximate_date\" \"{channel.ChannelUrl}/videos\"";
 
         var startInfo = new ProcessStartInfo
         {

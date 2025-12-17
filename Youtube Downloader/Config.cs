@@ -66,6 +66,8 @@ public class Config
     // Auto-update
     public string GitHubReleaseUrl { get; set; }
     public string LastKnownVersion { get; set; }
+    public bool AutoCheckAppUpdates { get; set; }
+    public bool AutoCheckYtDlpUpdates { get; set; }
 
     // Window behavior
     public bool MinimizeOnClose { get; set; }
@@ -184,6 +186,8 @@ public class Config
         LastSongLoadMs = 0;
         GitHubReleaseUrl = DefaultGitHubReleaseUrl;
         LastKnownVersion = "";
+        AutoCheckAppUpdates = true;
+        AutoCheckYtDlpUpdates = true;
         MinimizeOnClose = false;
         AllowFilenameEdit = false;
         LogFolder = Path.Combine(appDataDir, "logs");
@@ -381,6 +385,18 @@ public class Config
                     LastKnownVersion = lastKnownVersion;
                 }
 
+                var autoCheckAppUpdates = root.Element("AutoCheckAppUpdates")?.Value;
+                if (bool.TryParse(autoCheckAppUpdates, out var autoCheckApp))
+                {
+                    AutoCheckAppUpdates = autoCheckApp;
+                }
+
+                var autoCheckYtDlpUpdates = root.Element("AutoCheckYtDlpUpdates")?.Value;
+                if (bool.TryParse(autoCheckYtDlpUpdates, out var autoCheckYtDlp))
+                {
+                    AutoCheckYtDlpUpdates = autoCheckYtDlp;
+                }
+
                 var minimizeOnClose = root.Element("MinimizeOnClose")?.Value;
                 if (bool.TryParse(minimizeOnClose, out var minOnClose))
                 {
@@ -453,6 +469,8 @@ public class Config
                 new XElement("LastSongLoadMs", LastSongLoadMs),
                 new XElement("GitHubReleaseUrl", GitHubReleaseUrl),
                 new XElement("LastKnownVersion", LastKnownVersion),
+                new XElement("AutoCheckAppUpdates", AutoCheckAppUpdates),
+                new XElement("AutoCheckYtDlpUpdates", AutoCheckYtDlpUpdates),
                 new XElement("MinimizeOnClose", MinimizeOnClose),
                 new XElement("AllowFilenameEdit", AllowFilenameEdit),
                 new XElement("LogFolder", LogFolder),

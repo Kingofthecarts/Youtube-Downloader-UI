@@ -74,7 +74,7 @@ public class EditConfigForm : Form
     private void InitializeComponents()
     {
         Text = "Edit Configuration";
-        Size = new Size(600, 950);
+        Size = new Size(600, 1000);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;

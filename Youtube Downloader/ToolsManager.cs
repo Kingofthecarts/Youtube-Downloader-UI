@@ -92,6 +92,83 @@ public class ToolsManager
     }
 
     /// <summary>
+    /// Gets the installed yt-dlp version by running yt-dlp --version
+    /// </summary>
+    public async Task<string?> GetYtDlpVersionAsync()
+    {
+        if (!File.Exists(YtDlpPath))
+            return null;
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = YtDlpPath,
+                Arguments = "--version",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = new Process { StartInfo = startInfo };
+            process.Start();
+
+            string output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                return output.Trim();
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the latest yt-dlp version from GitHub releases
+    /// </summary>
+    public static async Task<(string? version, string? error)> GetLatestYtDlpVersionAsync()
+    {
+        try
+        {
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(15);
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "YouTube-Downloader-App");
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
+
+            var response = await httpClient.GetAsync("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest");
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return (null, "No releases found.");
+            }
+
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            string tagName = root.GetProperty("tag_name").GetString() ?? "";
+            return (tagName, null);
+        }
+        catch (HttpRequestException ex)
+        {
+            return (null, $"Network error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            return (null, $"Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Checks if WebView2 Runtime is installed on the system.
     /// </summary>
     public static bool IsWebView2Available()
@@ -334,7 +411,7 @@ public class ToolsManager
             config.FfmpegPath = FfmpegPath;
             config.Save();
 
-            // Check and download Deno (optional but recommended for YouTube)
+            // Check and download Deno (required for YouTube signature solving)
             if (!File.Exists(DenoPath))
             {
                 DenoPath = Path.Combine(sourcePath, "deno.exe");

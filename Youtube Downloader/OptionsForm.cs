@@ -16,6 +16,8 @@ public class OptionsForm : Form
     private Label lastSongLoadLabel = null!;
     private TextBox gitHubReleaseUrlTextBox = null!;
     private Button checkForUpdateButton = null!;
+    private CheckBox autoCheckAppUpdatesCheckBox = null!;
+    private CheckBox autoCheckYtDlpUpdatesCheckBox = null!;
     private CheckBox allowSongDeleteCheckBox = null!;
     private CheckBox songDeleteCountdownCheckBox = null!;
     private NumericUpDown songDeleteCountdownNumeric = null!;
@@ -40,7 +42,7 @@ public class OptionsForm : Form
     private void InitializeComponents()
     {
         Text = "Options";
-        Size = new Size(600, 970);
+        Size = new Size(600, 1030);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -312,12 +314,32 @@ public class OptionsForm : Form
             Size = new Size(150, 25)
         };
         checkForUpdateButton.Click += CheckForUpdateButton_Click;
-        y += 40;
+        y += 30;
+
+        autoCheckAppUpdatesCheckBox = new CheckBox
+        {
+            Text = "Check for app updates on startup",
+            Location = new Point(15, y),
+            AutoSize = true,
+            Checked = config.AutoCheckAppUpdates
+        };
+        y += 25;
+
+        autoCheckYtDlpUpdatesCheckBox = new CheckBox
+        {
+            Text = "Check for yt-dlp updates on startup",
+            Location = new Point(15, y),
+            AutoSize = true,
+            Checked = config.AutoCheckYtDlpUpdates
+        };
+        y += 35;
 
         Controls.Add(updatesSectionLabel);
         Controls.Add(gitHubReleaseUrlLabel);
         Controls.Add(gitHubReleaseUrlTextBox);
         Controls.Add(checkForUpdateButton);
+        Controls.Add(autoCheckAppUpdatesCheckBox);
+        Controls.Add(autoCheckYtDlpUpdatesCheckBox);
 
         // Song Browser Delete Feature section
         var songDeleteSectionLabel = new Label
@@ -691,6 +713,8 @@ public class OptionsForm : Form
         int maxChannelVideosShown = (int)maxChannelVideosNumeric.Value;
         bool enablePerformanceTracking = enablePerformanceTrackingCheckBox.Checked;
         string gitHubReleaseUrl = gitHubReleaseUrlTextBox.Text.Trim();
+        bool autoCheckAppUpdates = autoCheckAppUpdatesCheckBox.Checked;
+        bool autoCheckYtDlpUpdates = autoCheckYtDlpUpdatesCheckBox.Checked;
         bool allowSongDelete = allowSongDeleteCheckBox.Checked;
         bool songDeleteCountdown = songDeleteCountdownCheckBox.Checked;
         int songDeleteCountdownSeconds = (int)songDeleteCountdownNumeric.Value;
@@ -707,6 +731,8 @@ public class OptionsForm : Form
         config.MaxChannelVideosShown = maxChannelVideosShown;
         config.EnablePerformanceTracking = enablePerformanceTracking;
         config.GitHubReleaseUrl = gitHubReleaseUrl;
+        config.AutoCheckAppUpdates = autoCheckAppUpdates;
+        config.AutoCheckYtDlpUpdates = autoCheckYtDlpUpdates;
         config.AllowSongDelete = allowSongDelete;
         config.SongDeleteRequireCountdown = songDeleteCountdown;
         config.SongDeleteCountdownSeconds = songDeleteCountdownSeconds;

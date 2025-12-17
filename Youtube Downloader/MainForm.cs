@@ -387,6 +387,85 @@ public partial class MainForm : Form
             config.LastKnownVersion = currentVersion;
             config.Save();
         }
+
+        // Check for updates on startup (if enabled)
+        await CheckForStartupUpdatesAsync();
+    }
+
+    private async Task CheckForStartupUpdatesAsync()
+    {
+        // Check for app updates
+        if (config.AutoCheckAppUpdates && !string.IsNullOrEmpty(config.GitHubReleaseUrl))
+        {
+            try
+            {
+                var updateResult = await AppUpdater.CheckForUpdateAsync(config.GitHubReleaseUrl);
+
+                if (updateResult.UpdateAvailable && !string.IsNullOrEmpty(updateResult.DownloadUrl))
+                {
+                    logger.Log($"App update available: {updateResult.LatestVersion} (current: {AppUpdater.CurrentVersionString})");
+
+                    var result = MessageBox.Show(
+                        this,
+                        $"A new version of YouTube Downloader is available!\n\n" +
+                        $"Current version: {AppUpdater.CurrentVersionString}\n" +
+                        $"Latest version: {updateResult.LatestVersion}\n\n" +
+                        "Would you like to download and install the update?",
+                        "Update Available",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        // Trigger the manual update process
+                        CheckForUpdatesMenuItem_Click(null, EventArgs.Empty);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Log($"Auto-update check failed: {ex.Message}");
+            }
+        }
+
+        // Check for yt-dlp updates
+        if (config.AutoCheckYtDlpUpdates && toolsManager.AreToolsAvailable())
+        {
+            try
+            {
+                string? currentVersion = await toolsManager.GetYtDlpVersionAsync();
+                var (latestVersion, error) = await ToolsManager.GetLatestYtDlpVersionAsync();
+
+                if (!string.IsNullOrEmpty(currentVersion) && !string.IsNullOrEmpty(latestVersion) && error == null)
+                {
+                    // Compare versions (yt-dlp uses dates like 2024.12.13)
+                    if (string.Compare(latestVersion, currentVersion, StringComparison.OrdinalIgnoreCase) > 0)
+                    {
+                        logger.Log($"yt-dlp update available: {latestVersion} (current: {currentVersion})");
+
+                        var result = MessageBox.Show(
+                            this,
+                            $"A new version of yt-dlp is available!\n\n" +
+                            $"Current version: {currentVersion}\n" +
+                            $"Latest version: {latestVersion}\n\n" +
+                            "Would you like to download the update?",
+                            "yt-dlp Update Available",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Information);
+
+                        if (result == DialogResult.Yes)
+                        {
+                            // Trigger the redownload
+                            RedownloadYtDlpMenuItem_Click(null, EventArgs.Empty);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Log($"yt-dlp update check failed: {ex.Message}");
+            }
+        }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -514,6 +593,55 @@ public partial class MainForm : Form
 
         logger.Log($"yt-dlp path: {ytDlpPath}");
         logger.Log($"ffmpeg path: {ffmpegPath}");
+
+        // Check for Deno (required for YouTube signature solving)
+        if (!toolsManager.IsDenoAvailable())
+        {
+            logger.Log("Deno runtime not found");
+            var denoResult = MessageBox.Show(
+                "Deno runtime is missing.\n\n" +
+                "Deno is required for yt-dlp to handle YouTube's signature protection.\n" +
+                "Without it, downloads may fail.\n\n" +
+                "Would you like to download Deno now?",
+                "Deno Runtime Missing",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (denoResult == DialogResult.Yes)
+            {
+                using var downloadForm = new DownloadProgressForm("Downloading Deno Runtime");
+                var downloadTask = downloadForm.RunDownloadAsync(async (progress, token) =>
+                {
+                    return await toolsManager.RedownloadDenoAsync(progress);
+                });
+
+                downloadForm.ShowDialog(this);
+                await downloadTask;
+
+                if (downloadForm.WasSuccessful)
+                {
+                    logger.Log($"Deno downloaded to: {toolsManager.DenoPath}");
+                }
+                else if (!downloadForm.WasCancelled)
+                {
+                    logger.Log("Deno download failed");
+                    MessageBox.Show(
+                        "Failed to download Deno runtime.\n\n" +
+                        "You can try again later from Tools > Redownload Deno.",
+                        "Download Failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+            }
+            else
+            {
+                logger.Log("User declined Deno download");
+            }
+        }
+        else
+        {
+            logger.Log($"Deno path: {toolsManager.DenoPath}");
+        }
 
         statusLabel.Text = "Ready";
         SetControlsEnabled(true);
