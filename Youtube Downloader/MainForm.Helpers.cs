@@ -493,8 +493,29 @@ public partial class MainForm
 
         logger.Log($"Downloading update from: {updateResult.DownloadUrl}");
 
-        // Show progress dialog
-        using var progressForm = new DownloadProgressForm("Downloading Update");
+        // Show progress dialog in update mode
+        using var progressForm = new DownloadProgressForm("Downloading Update", updateMode: true);
+
+        // Set up the upgrade action
+        progressForm.SetUpgradeAction(() =>
+        {
+            try
+            {
+                logger.Log("Launching update script and exiting");
+                statusLabel.Text = "Installing update...";
+                AppUpdater.LaunchUpdateScript();
+                Application.Exit();
+            }
+            catch (Exception ex)
+            {
+                logger.Log($"Failed to launch update script: {ex.Message}");
+                MessageBox.Show(
+                    $"Failed to install update:\n{ex.Message}",
+                    "Update Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        });
 
         var downloadTask = progressForm.RunDownloadAsync(async (progress, token) =>
         {
@@ -509,36 +530,11 @@ public partial class MainForm
         progressForm.ShowDialog(this);
         await downloadTask;
 
+        // If download succeeded but user didn't click "Install Update", just log it
         if (progressForm.WasSuccessful)
         {
-            logger.Log("Update downloaded successfully");
-
-            var result = MessageBox.Show(
-                $"Update v{updateResult.LatestVersion} downloaded successfully!\n\n" +
-                "The application needs to restart to apply the update.\n\n" +
-                "Do you want to restart now?",
-                "Update Ready",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
-            {
-                try
-                {
-                    logger.Log("Launching update script and exiting");
-                    AppUpdater.LaunchUpdateScript();
-                    Application.Exit();
-                }
-                catch (Exception ex)
-                {
-                    logger.Log($"Failed to launch update script: {ex.Message}");
-                    MessageBox.Show(
-                        $"Failed to launch update script:\n{ex.Message}",
-                        "Update Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
-                }
-            }
+            logger.Log("Update downloaded - waiting for user to install");
+            statusLabel.Text = "Update ready - restart to install";
         }
         else if (!progressForm.WasCancelled)
         {

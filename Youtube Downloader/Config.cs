@@ -65,6 +65,7 @@ public class Config
 
     // Auto-update
     public string GitHubReleaseUrl { get; set; }
+    public string LastKnownVersion { get; set; }
 
     // Window behavior
     public bool MinimizeOnClose { get; set; }
@@ -182,6 +183,7 @@ public class Config
         LastHistoryOpenMs = 0;
         LastSongLoadMs = 0;
         GitHubReleaseUrl = DefaultGitHubReleaseUrl;
+        LastKnownVersion = "";
         MinimizeOnClose = false;
         AllowFilenameEdit = false;
         LogFolder = Path.Combine(appDataDir, "logs");
@@ -373,6 +375,12 @@ public class Config
                     GitHubReleaseUrl = gitHubReleaseUrl;
                 }
 
+                var lastKnownVersion = root.Element("LastKnownVersion")?.Value;
+                if (!string.IsNullOrEmpty(lastKnownVersion))
+                {
+                    LastKnownVersion = lastKnownVersion;
+                }
+
                 var minimizeOnClose = root.Element("MinimizeOnClose")?.Value;
                 if (bool.TryParse(minimizeOnClose, out var minOnClose))
                 {
@@ -444,6 +452,7 @@ public class Config
                 new XElement("LastHistoryOpenMs", LastHistoryOpenMs),
                 new XElement("LastSongLoadMs", LastSongLoadMs),
                 new XElement("GitHubReleaseUrl", GitHubReleaseUrl),
+                new XElement("LastKnownVersion", LastKnownVersion),
                 new XElement("MinimizeOnClose", MinimizeOnClose),
                 new XElement("AllowFilenameEdit", AllowFilenameEdit),
                 new XElement("LogFolder", LogFolder),

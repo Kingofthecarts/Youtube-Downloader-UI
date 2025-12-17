@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+- Fixed update download progress getting stuck
+- Added "Install Update" button after download completes
+- App now auto-reopens after update is installed
+- Changelog now automatically opens after an update
+
 ## 1.3.0
 - Added YouTube sign-in feature using WebView2 for authentication
 - Added encrypted cookie storage in config.xml (DPAPI encryption)

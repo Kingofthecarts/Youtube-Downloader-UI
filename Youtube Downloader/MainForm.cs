@@ -369,6 +369,24 @@ public partial class MainForm : Form
 
         // Update YouTube login status in status bar
         UpdateYouTubeStatus();
+
+        // Check if version changed (after an update) and show changelog
+        string currentVersion = AppUpdater.CurrentVersionString;
+        if (!string.IsNullOrEmpty(config.LastKnownVersion) && config.LastKnownVersion != currentVersion)
+        {
+            logger.Log($"Version changed from {config.LastKnownVersion} to {currentVersion} - showing changelog");
+            config.LastKnownVersion = currentVersion;
+            config.Save();
+
+            // Show changelog
+            ChangelogMenuItem_Click(null, EventArgs.Empty);
+        }
+        else if (string.IsNullOrEmpty(config.LastKnownVersion))
+        {
+            // First time tracking version - just save current version
+            config.LastKnownVersion = currentVersion;
+            config.Save();
+        }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

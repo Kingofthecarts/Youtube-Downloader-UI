@@ -9,12 +9,15 @@ public class DownloadProgressForm : Form
 
     private CancellationTokenSource? cancellationTokenSource;
     private bool isComplete = false;
+    private bool isUpdateMode = false;
+    private Action? onUpgradeClicked;
 
     public bool WasCancelled { get; private set; } = false;
     public bool WasSuccessful { get; private set; } = false;
 
-    public DownloadProgressForm(string title)
+    public DownloadProgressForm(string title, bool updateMode = false)
     {
+        isUpdateMode = updateMode;
         InitializeComponents(title);
     }
 
@@ -102,7 +105,44 @@ public class DownloadProgressForm : Form
         WasSuccessful = success;
         progressBar.Style = ProgressBarStyle.Continuous;
         progressBar.Value = success ? 100 : 0;
-        cancelButton.Text = "Close";
+
+        if (success && isUpdateMode)
+        {
+            // For updates, show "Install Update" button
+            cancelButton.Text = "Install Update";
+            cancelButton.BackColor = Color.FromArgb(0, 120, 212);
+            cancelButton.ForeColor = Color.White;
+            cancelButton.Font = new Font(cancelButton.Font, FontStyle.Bold);
+            cancelButton.Size = new Size(100, 28);
+            cancelButton.Location = new Point(320, 95);
+        }
+        else if (success)
+        {
+            // For regular downloads, auto-close after a brief delay
+            Task.Delay(500).ContinueWith(_ =>
+            {
+                if (!IsDisposed)
+                {
+                    Invoke(() =>
+                    {
+                        DialogResult = DialogResult.OK;
+                        Close();
+                    });
+                }
+            });
+        }
+        else
+        {
+            cancelButton.Text = "Close";
+        }
+    }
+
+    /// <summary>
+    /// Sets the action to perform when the upgrade button is clicked.
+    /// </summary>
+    public void SetUpgradeAction(Action action)
+    {
+        onUpgradeClicked = action;
     }
 
     private void CancelButton_Click(object? sender, EventArgs e)
@@ -111,8 +151,21 @@ public class DownloadProgressForm : Form
         {
             WasCancelled = true;
             cancellationTokenSource?.Cancel();
+            DialogResult = DialogResult.Cancel;
+            Close();
+            return;
         }
-        DialogResult = isComplete && WasSuccessful ? DialogResult.OK : DialogResult.Cancel;
+
+        if (WasSuccessful && isUpdateMode && onUpgradeClicked != null)
+        {
+            // Trigger the upgrade action
+            DialogResult = DialogResult.OK;
+            Close();
+            onUpgradeClicked.Invoke();
+            return;
+        }
+
+        DialogResult = WasSuccessful ? DialogResult.OK : DialogResult.Cancel;
         Close();
     }
 
