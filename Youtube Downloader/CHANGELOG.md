@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.5.2
+### Playlist Downloads
+- Fixed "yt-dlp exited with code 1" error when downloading selected items from Browse Playlist
+- Root cause: File locking conflict between TagLib (setting video ID) and ffmpeg (embedding thumbnail)
+- Video ID comments are now set after yt-dlp fully completes, preventing race condition with postprocessing
+
+## 1.5.1
+### Channel Monitor
+- Changed "Play" button to "Redownload" for downloaded videos in Show All view
+- Clicking "Redownload" now re-downloads the video instead of opening the songs page
+
+### YouTube Sign-In
+- Fixed stale session issue by clearing WebView2 data before each sign-in
+- Sign-in now always starts fresh, preventing "Failed to save cookies" errors
+- Fixed cookie expiry conversion for session cookies (DateTime.MinValue handling)
+
+## 1.5.0
+### Song Browser
+- Added Previous button to play the previously played song (based on play history, not table order)
+- Random button no longer plays the same song that's currently playing
+- Song Browser now auto-refreshes after downloads complete to show new songs
+- Moved "Enable Delete" checkbox to bottom panel (left of Reset View)
+
+### Channel Monitor
+- Added "Show Ignored" checkbox beside "Show all" to toggle visibility of ignored videos
+- Ignored videos are now hidden by default (must check "Show Ignored" to see them)
+- "Show all" now auto-unchecks "Show Ignored" when enabled
+- Download buttons are now disabled in Channel Monitor while a download is in progress
+
+### Rename Song
+- Added colon (:) and comma (,) as filename delimiters for artist/title splitting
+
 ## 1.4.1
 - Added Deno runtime check on startup with download prompt if missing
 - Deno is required for yt-dlp to handle YouTube signature protection

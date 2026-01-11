@@ -30,6 +30,7 @@ public class ChannelMonitorForm : Form
     private CancellationTokenSource? fetchCancellation;
     private Label nextScanLabel = null!;
     private System.Windows.Forms.Timer countdownTimer = null!;
+    private CheckBox showIgnoredCheckBox = null!;
 
     private MonitoredChannel? selectedChannel;
     private int secondsUntilNextScan;
@@ -173,12 +174,24 @@ public class ChannelMonitorForm : Form
         {
             Text = "Show all",
             Location = new Point(580, 142),
-            Size = new Size(80, 20),
+            Size = new Size(75, 20),
             Anchor = AnchorStyles.Top | AnchorStyles.Left,
             Enabled = false,
             Visible = false  // Hidden until channel selected
         };
         showAllVideosCheckBox.CheckedChanged += ShowAllVideosCheckBox_CheckedChanged;
+
+        showIgnoredCheckBox = new CheckBox
+        {
+            Text = "Show ignored",
+            Location = new Point(655, 142),
+            Size = new Size(95, 20),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            Enabled = false,
+            Visible = false,  // Hidden until channel selected
+            Checked = false
+        };
+        showIgnoredCheckBox.CheckedChanged += ShowIgnoredCheckBox_CheckedChanged;
 
         // Search filter textbox - above the grid
         searchFilterTextBox = new TextBox
@@ -274,7 +287,7 @@ public class ChannelMonitorForm : Form
         videosGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "UploadDate", HeaderText = "Upload Date", Width = 100, AutoSizeMode = DataGridViewAutoSizeColumnMode.None });
         videosGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Duration", HeaderText = "Duration", Width = 70, AutoSizeMode = DataGridViewAutoSizeColumnMode.None });
         videosGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Status", HeaderText = "Status", Width = 80, AutoSizeMode = DataGridViewAutoSizeColumnMode.None });
-        videosGrid.Columns.Add(new DataGridViewButtonColumn { Name = "Download", HeaderText = "", Text = "Download", UseColumnTextForButtonValue = true, Width = 75, AutoSizeMode = DataGridViewAutoSizeColumnMode.None });
+        videosGrid.Columns.Add(new DataGridViewButtonColumn { Name = "Download", HeaderText = "", Width = 85, AutoSizeMode = DataGridViewAutoSizeColumnMode.None });
         videosGrid.Columns.Add(new DataGridViewButtonColumn { Name = "Snooze", HeaderText = "", Width = 65, AutoSizeMode = DataGridViewAutoSizeColumnMode.None });
         videosGrid.Columns.Add(new DataGridViewButtonColumn { Name = "Ignore", HeaderText = "", Width = 55, AutoSizeMode = DataGridViewAutoSizeColumnMode.None });
 
@@ -330,6 +343,7 @@ public class ChannelMonitorForm : Form
         Controls.Add(lastCheckedLabel);
         Controls.Add(statusFilterComboBox);
         Controls.Add(showAllVideosCheckBox);
+        Controls.Add(showIgnoredCheckBox);
         Controls.Add(searchFilterTextBox);
         Controls.Add(snoozeAllButton);
         Controls.Add(resetChannelButton);
@@ -437,6 +451,32 @@ public class ChannelMonitorForm : Form
         }
     }
 
+    /// <summary>
+    /// Enables or disables download functionality in the Channel Monitor.
+    /// Called from MainForm when downloads start/complete.
+    /// </summary>
+    public void SetDownloadEnabled(bool enabled)
+    {
+        if (InvokeRequired)
+        {
+            Invoke(() => SetDownloadEnabled(enabled));
+            return;
+        }
+
+        // Update the grid to enable/disable download buttons
+        foreach (DataGridViewRow row in videosGrid.Rows)
+        {
+            if (row.Cells["Download"] is DataGridViewButtonCell downloadCell)
+            {
+                // Gray out button text when disabled
+                downloadCell.Style.ForeColor = enabled ? SystemColors.ControlText : SystemColors.GrayText;
+            }
+        }
+
+        // Store state for click handler to check
+        videosGrid.Tag = enabled;
+    }
+
     private void ChannelListBox_SelectedIndexChanged(object? sender, EventArgs e)
     {
         if (channelListBox.SelectedItem is ChannelListItem item)
@@ -458,6 +498,8 @@ public class ChannelMonitorForm : Form
                 filterLabel.Visible = true;
             showAllVideosCheckBox.Enabled = true;
             showAllVideosCheckBox.Visible = true;
+            showIgnoredCheckBox.Enabled = true;
+            showIgnoredCheckBox.Visible = true;
             searchFilterTextBox.Enabled = true;
             searchFilterTextBox.Visible = true;
         }
@@ -480,6 +522,8 @@ public class ChannelMonitorForm : Form
                 filterLabel.Visible = false;
             showAllVideosCheckBox.Enabled = false;
             showAllVideosCheckBox.Visible = false;
+            showIgnoredCheckBox.Enabled = false;
+            showIgnoredCheckBox.Visible = false;
             searchFilterTextBox.Enabled = false;
             searchFilterTextBox.Visible = false;
             searchFilterTextBox.Text = "";  // Clear search when deselecting channel
@@ -550,11 +594,21 @@ public class ChannelMonitorForm : Form
                 filteredVideos = filteredVideos.Where(v => v.Status == filterStatus);
             }
         }
-        else if (!showAllVideosCheckBox.Checked)
+        else
         {
-            // Default: hide Ignored and Downloaded unless "Show all" is checked
-            filteredVideos = filteredVideos.Where(v =>
-                v.Status != VideoStatus.Ignored && v.Status != VideoStatus.Downloaded);
+            // "Show all" shows everything (Downloaded and Ignored)
+            if (!showAllVideosCheckBox.Checked)
+            {
+                // Hide Downloaded by default
+                filteredVideos = filteredVideos.Where(v => v.Status != VideoStatus.Downloaded);
+
+                // Hide Ignored unless "Show Ignored" checkbox is checked
+                if (!showIgnoredCheckBox.Checked)
+                {
+                    filteredVideos = filteredVideos.Where(v => v.Status != VideoStatus.Ignored);
+                }
+            }
+            // When Show All is checked, show everything (no filtering)
         }
 
         // Apply search filter
@@ -599,14 +653,15 @@ public class ChannelMonitorForm : Form
             {
                 row.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 200);  // Light yellow
                 // All buttons enabled for New status
+                row.Cells["Download"].Value = "Download";
                 row.Cells["Snooze"].Value = "Snooze";
                 row.Cells["Ignore"].Value = "Ignore";
             }
             else if (video.Status == VideoStatus.Downloaded)
             {
                 row.DefaultCellStyle.BackColor = Color.FromArgb(200, 255, 200);  // Light green
-                // Change Download button to "Play"
-                row.Cells["Download"].Value = "Play";
+                // Change Download button to "Redownload"
+                row.Cells["Download"].Value = "Redownload";
                 // Disable Snooze and Ignore buttons - not applicable for downloaded
                 row.Cells["Snooze"].Value = "";
                 row.Cells["Ignore"].Value = "";
@@ -615,6 +670,7 @@ public class ChannelMonitorForm : Form
             {
                 row.DefaultCellStyle.BackColor = Color.FromArgb(220, 235, 255);  // Light blue
                 // Show Unsnooze to go back to New
+                row.Cells["Download"].Value = "Download";
                 row.Cells["Snooze"].Value = "Unsnooze";
                 row.Cells["Ignore"].Value = "Ignore";
             }
@@ -622,6 +678,7 @@ public class ChannelMonitorForm : Form
             {
                 row.DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);  // Light gray
                 // Show Unsnooze button to go back to New
+                row.Cells["Download"].Value = "Download";
                 row.Cells["Snooze"].Value = "Unsnooze";
                 row.Cells["Ignore"].Value = "Ignore";
             }
@@ -629,6 +686,7 @@ public class ChannelMonitorForm : Form
             {
                 row.DefaultCellStyle.ForeColor = Color.Gray;
                 // Show "Wake" instead of "Ignore" button, show Unsnooze
+                row.Cells["Download"].Value = "Download";
                 row.Cells["Snooze"].Value = "Unsnooze";
                 row.Cells["Ignore"].Value = "Wake";
             }
@@ -1586,31 +1644,35 @@ public class ChannelMonitorForm : Form
         if (video.Status == VideoStatus.New)
         {
             row.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 200);  // Light yellow
+            row.Cells["Download"].Value = "Download";
             row.Cells["Snooze"].Value = "Snooze";
             row.Cells["Ignore"].Value = "Ignore";
         }
         else if (video.Status == VideoStatus.Downloaded)
         {
             row.DefaultCellStyle.BackColor = Color.FromArgb(200, 255, 200);  // Light green
-            row.Cells["Download"].Value = "Play";
+            row.Cells["Download"].Value = "Redownload";
             row.Cells["Snooze"].Value = "";
             row.Cells["Ignore"].Value = "";
         }
         else if (video.Status == VideoStatus.Watched)
         {
             row.DefaultCellStyle.BackColor = Color.FromArgb(220, 235, 255);  // Light blue
+            row.Cells["Download"].Value = "Download";
             row.Cells["Snooze"].Value = "Unsnooze";
             row.Cells["Ignore"].Value = "Ignore";
         }
         else if (video.Status == VideoStatus.Snoozed)
         {
             row.DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);  // Light gray
+            row.Cells["Download"].Value = "Download";
             row.Cells["Snooze"].Value = "Unsnooze";
             row.Cells["Ignore"].Value = "Ignore";
         }
         else if (video.Status == VideoStatus.Ignored)
         {
             row.DefaultCellStyle.ForeColor = Color.Gray;
+            row.Cells["Download"].Value = "Download";
             row.Cells["Snooze"].Value = "Unsnooze";
             row.Cells["Ignore"].Value = "Wake";
         }
@@ -1856,7 +1918,23 @@ public class ChannelMonitorForm : Form
     {
         if (selectedChannel == null) return;
 
+        // When Show All is checked, uncheck Show Ignored (Show All includes everything)
+        if (showAllVideosCheckBox.Checked && showIgnoredCheckBox.Checked)
+        {
+            showIgnoredCheckBox.Checked = false;
+            // The above will trigger its own CheckedChanged which will call DisplayVideos
+            return;
+        }
+
         // Refresh the display to show/hide videos based on checkbox state
+        DisplayVideos(selectedChannel);
+    }
+
+    private void ShowIgnoredCheckBox_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (selectedChannel == null) return;
+
+        // Refresh the display to show/hide ignored videos based on checkbox state
         DisplayVideos(selectedChannel);
     }
 
@@ -2019,15 +2097,16 @@ public class ChannelMonitorForm : Form
 
         if (columnName == "Download")
         {
-            // If already downloaded, "Play" button plays the song
-            if (video.Status == VideoStatus.Downloaded)
+            // Check if downloads are enabled (not disabled during MainForm download)
+            bool downloadsEnabled = videosGrid.Tag == null || (bool)videosGrid.Tag;
+            if (!downloadsEnabled)
             {
-                PlayDownloadedSong(video);
+                MessageBox.Show("Please wait for the current download to complete.",
+                    "Download in Progress", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            else
-            {
-                DownloadVideo(video, e.RowIndex);
-            }
+            // Download or redownload the video
+            DownloadVideo(video, e.RowIndex);
         }
         else if (columnName == "Snooze")
         {
@@ -2089,13 +2168,13 @@ public class ChannelMonitorForm : Form
         video.IsNew = false;
         storage.Save();
 
-        // Update the row to show "Play" button and Downloaded status
+        // Update the row to show "Redownload" button and Downloaded status
         // Keep it visible - don't hide until user manually refreshes
         if (rowIndex >= 0 && rowIndex < videosGrid.Rows.Count)
         {
             var row = videosGrid.Rows[rowIndex];
             row.Cells["Status"].Value = "Downloaded";
-            row.Cells["Download"].Value = "Play";
+            row.Cells["Download"].Value = "Redownload";
             row.Cells["Snooze"].Value = "";  // Disable snooze
             row.Cells["Ignore"].Value = "";  // Disable ignore
             row.DefaultCellStyle.BackColor = Color.FromArgb(200, 255, 200);  // Light green

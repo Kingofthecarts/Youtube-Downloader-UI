@@ -33,6 +33,12 @@ public partial class MainForm
             playlistProgressLabel.Visible = false;
             playlistLabel.Visible = false;
         }
+
+        // Disable/enable download buttons in Channel Monitor if open
+        if (openChannelMonitor != null && !openChannelMonitor.IsDisposed && openChannelMonitor.Visible)
+        {
+            openChannelMonitor.SetDownloadEnabled(enabled);
+        }
     }
 
     private void UpdateGoButtonEnabled()

@@ -200,6 +200,7 @@ public partial class MainForm
         currentChannelId = null;
         currentChannelName = null;
         downloadedFileSize = 0;
+        lastYtDlpOutput = ""; // Reset for auth error detection
 
         // Start job timer
         StartJobTimer();
@@ -237,6 +238,9 @@ public partial class MainForm
                 downloadProgressBar.Value = 0;
                 convertProgressBar.Value = 0;
 
+                // Log item details for debugging
+                logger.Log($"Playlist item {playlistCurrent}: VideoId={item.VideoId}, URL={item.Url}");
+
                 // Download this single video to the playlist folder
                 await RunYtDlpAsync(item.Url, false, folderName);
 
@@ -245,14 +249,19 @@ public partial class MainForm
                 playlistProgressLabel.Text = $"{playlistCurrent}/{playlistTotal}";
 
                 // Track the record and commit to history immediately
+                // This runs AFTER yt-dlp exits and files are moved to final location
                 if (!string.IsNullOrEmpty(lastDownloadedFile) && File.Exists(lastDownloadedFile))
                 {
+                    // Set video ID in comments tag - safe now that yt-dlp has exited
+                    SetVideoIdInComments(lastDownloadedFile, item.VideoId);
+
                     var fileInfo = new FileInfo(lastDownloadedFile);
                     var record = new DownloadRecord
                     {
                         VideoId = item.VideoId,
                         Url = item.Url,
                         Title = currentVideoTitle ?? Path.GetFileNameWithoutExtension(lastDownloadedFile),
+                        FileName = Path.GetFileName(lastDownloadedFile),
                         DownloadDate = DateTime.Now,
                         FileSizeBytes = fileInfo.Length,
                         FilePath = lastDownloadedFile,
@@ -260,7 +269,9 @@ public partial class MainForm
                         IsPlaylist = false,
                         PlaylistItemCount = 0,
                         ChannelId = currentChannelId ?? "",
-                        ChannelName = currentChannelName ?? ""
+                        ChannelName = currentChannelName ?? "",
+                        DownloadTimeSeconds = currentVideoDownloadTime.TotalSeconds,
+                        ConvertTimeSeconds = currentVideoConvertTime.TotalSeconds
                     };
                     playlistRecords.Add(record);
 
@@ -379,6 +390,9 @@ public partial class MainForm
                     logger.LogHistoryAdded(record.Title, $"Playlist: {record.PlaylistItemCount} items ({excludedItems?.Count ?? 0} excluded)");
                     logger.LogPlaylistComplete(playlistRecords.Count, outputFolder);
                 }
+
+                // Refresh Song Browser if open to show newly downloaded songs
+                RefreshSongBrowserIfOpen();
             }
         }
         catch (OperationCanceledException)
@@ -655,6 +669,9 @@ public partial class MainForm
                     }
                 }
             }
+
+            // Refresh Song Browser if open to show newly downloaded songs
+            RefreshSongBrowserIfOpen();
         }
         catch (OperationCanceledException)
         {
@@ -773,6 +790,7 @@ public partial class MainForm
 
         // Get cookies argument for YouTube authentication
         string cookiesArg = GetCookiesArgument();
+        logger.Log($"Cookies argument: {(string.IsNullOrEmpty(cookiesArg) ? "(none)" : "present")}");
 
         if (isPlaylist)
         {
@@ -1137,52 +1155,9 @@ public partial class MainForm
                 // Don't show "Saved to" here for single videos - the file is still in temp folder
                 // It will be shown after the file is moved to the final output location
 
-                // Track the record for playlist downloads
-                if (isPlaylistDownload && !string.IsNullOrEmpty(lastDownloadedFile))
-                {
-                    try
-                    {
-                        if (File.Exists(lastDownloadedFile))
-                        {
-                            // Set video ID in comments tag for playlist items
-                            SetVideoIdInComments(lastDownloadedFile, currentVideoId);
-
-                            var fileInfo = new FileInfo(lastDownloadedFile);
-                            string? folder = Path.GetDirectoryName(lastDownloadedFile);
-                            // Build individual video URL
-                            string videoUrl = !string.IsNullOrEmpty(currentVideoId)
-                                ? $"https://www.youtube.com/watch?v={currentVideoId}"
-                                : currentPlaylistUrl ?? "";
-                            var record = new DownloadRecord
-                            {
-                                VideoId = currentVideoId ?? "",
-                                Url = videoUrl,
-                                Title = currentVideoTitle ?? Path.GetFileNameWithoutExtension(lastDownloadedFile),
-                                FileName = Path.GetFileName(lastDownloadedFile),
-                                DownloadDate = DateTime.Now,
-                                FileSizeBytes = fileInfo.Length,
-                                FilePath = lastDownloadedFile,
-                                DownloadFolder = folder ?? "",
-                                IsPlaylist = false,
-                                PlaylistItemCount = 0,
-                                ChannelId = currentChannelId ?? "",
-                                ChannelName = currentChannelName ?? "",
-                                DownloadTimeSeconds = currentVideoDownloadTime.TotalSeconds,
-                                ConvertTimeSeconds = currentVideoConvertTime.TotalSeconds
-                            };
-                            playlistRecords.Add(record);
-
-                            // Commit to history immediately if tracking each song
-                            if (trackEachSongCheckBox.Checked)
-                            {
-                                history.AddRecord(record);
-                                downloadStats.RecordDownload(record.FileSizeBytes);
-                                logger.LogHistoryAdded(record.Title, record.VideoId);
-                            }
-                        }
-                    }
-                    catch { }
-                }
+                // NOTE: Playlist record tracking is now done in StartSelectedPlaylistDownload
+                // AFTER yt-dlp exits and files are moved to final location.
+                // This prevents race conditions with yt-dlp's postprocessing (thumbnail embedding).
 
                 // Reset for next item in playlist (only if playlist download)
                 if (isPlaylistDownload)
@@ -1405,5 +1380,17 @@ public partial class MainForm
 
         // Add the channel (this will open the Channel Monitor form)
         await AddChannelToMonitorAsync(channelId, channelName ?? channelId, channelUrl);
+    }
+
+    /// <summary>
+    /// Refreshes the Song Browser if it's open to show newly downloaded songs.
+    /// </summary>
+    private void RefreshSongBrowserIfOpen()
+    {
+        if (openSongBrowser != null && !openSongBrowser.IsDisposed && openSongBrowser.Visible)
+        {
+            openSongBrowser.RefreshSongs();
+            logger.Log("Refreshed Song Browser after download");
+        }
     }
 }

@@ -39,12 +39,14 @@ public class SongBrowserForm : Form
     private Button playerPlayPauseButton = null!;
     private Button playerStopButton = null!;
     private Button playerNextButton = null!;
+    private Button playerPreviousButton = null!;
     private Button playerRandomButton = null!;
     private TrackBar playerVolumeBar = null!;
     private CheckBox autoPlayNextCheckBox = null!;
     private SafePictureBox playerAlbumArt = null!;
     private Button resetViewButton = null!;
     private readonly Random random = new();
+    private readonly List<string> playedSongHistory = new();  // Track played songs for Previous button
 
     public SongBrowserForm(string outputFolder, Config config, MainForm mainForm)
     {
@@ -165,13 +167,13 @@ public class SongBrowserForm : Form
         showSizeCheckBox.CheckedChanged += ShowSizeCheckBox_CheckedChanged;
 
         // Enable delete checkbox (only visible if AllowSongDelete is true in config)
+        // Positioned in the bottom button panel to avoid overlap with search
         enableDeleteCheckBox = new CheckBox
         {
             Text = "Enable Delete",
-            Location = new Point(12, 14),
             AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left,
-            Visible = config.AllowSongDelete
+            Visible = config.AllowSongDelete,
+            Margin = new Padding(3, 6, 3, 3)  // Align vertically with buttons
         };
         enableDeleteCheckBox.CheckedChanged += EnableDeleteCheckBox_CheckedChanged;
 
@@ -285,11 +287,20 @@ public class SongBrowserForm : Form
         };
         playerStopButton.Click += PlayerStopButton_Click;
 
+        playerPreviousButton = new Button
+        {
+            Text = "Prev",
+            Location = new Point(190, 40),
+            Size = new Size(45, 23),
+            Enabled = false
+        };
+        playerPreviousButton.Click += PlayerPreviousButton_Click;
+
         playerNextButton = new Button
         {
             Text = "Next",
-            Location = new Point(190, 40),
-            Size = new Size(50, 23),
+            Location = new Point(240, 40),
+            Size = new Size(45, 23),
             Enabled = false
         };
         playerNextButton.Click += PlayerNextButton_Click;
@@ -297,15 +308,15 @@ public class SongBrowserForm : Form
         playerRandomButton = new Button
         {
             Text = "Random",
-            Location = new Point(245, 40),
+            Location = new Point(290, 40),
             Size = new Size(60, 23)
         };
         playerRandomButton.Click += PlayerRandomButton_Click;
 
         playerSeekBar = new TrackBar
         {
-            Location = new Point(310, 37),
-            Size = new Size(380, 30),
+            Location = new Point(355, 37),
+            Size = new Size(335, 30),
             Minimum = 0,
             Maximum = 1000,
             TickStyle = TickStyle.BottomRight,
@@ -351,6 +362,7 @@ public class SongBrowserForm : Form
         playerGroupBox.Controls.Add(playerTimeLabel);
         playerGroupBox.Controls.Add(playerPlayPauseButton);
         playerGroupBox.Controls.Add(playerStopButton);
+        playerGroupBox.Controls.Add(playerPreviousButton);
         playerGroupBox.Controls.Add(playerNextButton);
         playerGroupBox.Controls.Add(playerRandomButton);
         playerGroupBox.Controls.Add(playerSeekBar);
@@ -426,6 +438,7 @@ public class SongBrowserForm : Form
         buttonPanel.Controls.Add(ratingFilterComboBox);
         buttonPanel.Controls.Add(ratingLabel);
         buttonPanel.Controls.Add(resetViewButton);
+        buttonPanel.Controls.Add(enableDeleteCheckBox);
 
         Controls.Add(searchLabel);
         Controls.Add(searchBox);
@@ -438,7 +451,6 @@ public class SongBrowserForm : Form
         Controls.Add(showFolderCheckBox);
         Controls.Add(showCommentsCheckBox);
         Controls.Add(showSizeCheckBox);
-        Controls.Add(enableDeleteCheckBox);
         Controls.Add(songsGrid);
         Controls.Add(playerGroupBox);
         Controls.Add(buttonPanel);
@@ -635,6 +647,19 @@ public class SongBrowserForm : Form
                 deleteColumn = null;
             }
         }
+    }
+
+    /// <summary>
+    /// Public method to refresh the song list. Called after downloads complete.
+    /// </summary>
+    public void RefreshSongs()
+    {
+        if (InvokeRequired)
+        {
+            Invoke(new Action(RefreshSongs));
+            return;
+        }
+        LoadSongs();
     }
 
     private void LoadSongs()
@@ -1045,6 +1070,18 @@ public class SongBrowserForm : Form
             return;
         }
 
+        // Track song in play history for Previous button
+        // Don't add duplicates if playing the same song again
+        if (playedSongHistory.Count == 0 || playedSongHistory[^1] != song.FilePath)
+        {
+            playedSongHistory.Add(song.FilePath);
+            // Keep history reasonable size (last 100 songs)
+            if (playedSongHistory.Count > 100)
+            {
+                playedSongHistory.RemoveAt(0);
+            }
+        }
+
         // Reset previous playing row's highlight
         if (currentPlayingRowIndex >= 0 && currentPlayingRowIndex < songsGrid.Rows.Count)
         {
@@ -1442,6 +1479,7 @@ public class SongBrowserForm : Form
         playerStopButton.Enabled = hasTrack;
         playerSeekBar.Enabled = hasTrack;
         playerNextButton.Enabled = hasTrack && currentPlayingRowIndex >= 0 && currentPlayingRowIndex < songsGrid.Rows.Count - 1;
+        playerPreviousButton.Enabled = playedSongHistory.Count >= 2;  // Need at least 2 songs (current + previous)
 
         if (hasTrack)
         {
@@ -1517,7 +1555,26 @@ public class SongBrowserForm : Form
     {
         if (songsGrid.Rows.Count == 0) return;
 
-        int randomIndex = random.Next(songsGrid.Rows.Count);
+        // If only one song, can't pick a different one
+        if (songsGrid.Rows.Count == 1)
+        {
+            var onlySong = songsGrid.Rows[0].Tag as SongInfo;
+            if (onlySong != null)
+            {
+                PlaySong(onlySong, 0);
+            }
+            return;
+        }
+
+        // Pick a random song that isn't the currently playing one
+        int randomIndex;
+        int attempts = 0;
+        do
+        {
+            randomIndex = random.Next(songsGrid.Rows.Count);
+            attempts++;
+        } while (randomIndex == currentPlayingRowIndex && attempts < 10);
+
         var randomSong = songsGrid.Rows[randomIndex].Tag as SongInfo;
         if (randomSong != null)
         {
@@ -1526,6 +1583,67 @@ public class SongBrowserForm : Form
             songsGrid.ClearSelection();
             songsGrid.Rows[randomIndex].Selected = true;
             songsGrid.FirstDisplayedScrollingRowIndex = randomIndex;
+        }
+    }
+
+    private void PlayerPreviousButton_Click(object? sender, EventArgs e)
+    {
+        // Need at least 2 songs in history (current + previous)
+        if (playedSongHistory.Count < 2) return;
+
+        // Get the previous song (second to last in history)
+        string previousFilePath = playedSongHistory[^2];
+
+        // Remove current song from history so we can go back again
+        playedSongHistory.RemoveAt(playedSongHistory.Count - 1);
+
+        // Find the song in the grid
+        for (int i = 0; i < songsGrid.Rows.Count; i++)
+        {
+            var song = songsGrid.Rows[i].Tag as SongInfo;
+            if (song != null && song.FilePath.Equals(previousFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                // Don't call PlaySong as it would add to history again
+                // Instead, play directly and update UI
+
+                // Reset previous playing row's highlight
+                if (currentPlayingRowIndex >= 0 && currentPlayingRowIndex < songsGrid.Rows.Count)
+                {
+                    songsGrid.Rows[currentPlayingRowIndex].DefaultCellStyle.BackColor = Color.Empty;
+                }
+
+                currentPlayingRowIndex = i;
+                SharedMediaPlayer.Play(song.FilePath, song.Filename);
+                LoadAlbumArt(song.FilePath);
+
+                // Highlight the row
+                songsGrid.Rows[i].DefaultCellStyle.BackColor = Color.FromArgb(198, 239, 206);
+
+                // Scroll to and select
+                songsGrid.ClearSelection();
+                songsGrid.Rows[i].Selected = true;
+                songsGrid.FirstDisplayedScrollingRowIndex = i;
+
+                UpdatePlayerUI();
+                return;
+            }
+        }
+
+        // Song not found in current grid view (maybe filtered out)
+        // Try to play directly if file exists
+        if (File.Exists(previousFilePath))
+        {
+            // Reset previous playing row's highlight
+            if (currentPlayingRowIndex >= 0 && currentPlayingRowIndex < songsGrid.Rows.Count)
+            {
+                songsGrid.Rows[currentPlayingRowIndex].DefaultCellStyle.BackColor = Color.Empty;
+            }
+
+            currentPlayingRowIndex = -1;
+            string filename = Path.GetFileNameWithoutExtension(previousFilePath);
+            SharedMediaPlayer.Play(previousFilePath, filename);
+            LoadAlbumArt(previousFilePath);
+            UpdatePlayerUI();
         }
     }
 

@@ -26,7 +26,7 @@ public class RenameForm : Form
     public bool ChangesMade { get; private set; } = false;
 
     // Common separators to split filename by
-    private static readonly char[] Separators = { '-', '|', '–', '—', '~', '·' };
+    private static readonly char[] Separators = { '-', '|', '–', '—', '~', '·', ':', ',' };
 
     public RenameForm(string filePath, string? videoId = null, bool allowFilenameEdit = false)
     {

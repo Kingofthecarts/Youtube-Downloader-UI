@@ -110,6 +110,19 @@ public partial class YouTubeLoginForm : Form
                 "YoutubeDownloader",
                 "WebView2Data");
 
+            // Delete existing WebView2 data to force fresh login (no stale sessions)
+            try
+            {
+                if (Directory.Exists(userDataFolder))
+                {
+                    Directory.Delete(userDataFolder, true);
+                }
+            }
+            catch
+            {
+                // Ignore deletion errors - folder may be in use
+            }
+
             var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
             await webView.EnsureCoreWebView2Async(env);
 
@@ -190,7 +203,7 @@ public partial class YouTubeLoginForm : Form
                     Name = cookie.Name,
                     Value = cookie.Value,
                     IsSecure = cookie.IsSecure,
-                    Expires = new DateTimeOffset(cookie.Expires).ToUnixTimeSeconds()
+                    Expires = GetSafeUnixTimestamp(cookie.Expires)
                 });
             }
 
@@ -205,7 +218,7 @@ public partial class YouTubeLoginForm : Form
                     Name = cookie.Name,
                     Value = cookie.Value,
                     IsSecure = cookie.IsSecure,
-                    Expires = new DateTimeOffset(cookie.Expires).ToUnixTimeSeconds()
+                    Expires = GetSafeUnixTimestamp(cookie.Expires)
                 });
             }
 
@@ -250,6 +263,27 @@ public partial class YouTubeLoginForm : Form
         if (webView != null)
         {
             webView.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Safely converts a DateTime to Unix timestamp.
+    /// Returns 0 for session cookies (DateTime.MinValue) or invalid dates (before 1970).
+    /// </summary>
+    private static long GetSafeUnixTimestamp(DateTime expires)
+    {
+        // Session cookies have DateTime.MinValue or dates before Unix epoch
+        if (expires == DateTime.MinValue || expires.Year < 1970)
+            return 0;
+
+        try
+        {
+            return new DateTimeOffset(expires).ToUnixTimeSeconds();
+        }
+        catch
+        {
+            // Any conversion error - treat as session cookie
+            return 0;
         }
     }
 }
